@@ -87,51 +87,18 @@ impl DotMatrixApp {
     }
 }
 
-impl eframe::App for DotMatrixApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx().clone();
-        self.update_texture(&ctx);
-
-        let status = self.source.status();
-        // egui rebuilds the layout every frame, so "responsive" is just an `if`.
-        if ui.available_width() < NARROW_WIDTH {
-            // Phone / narrow window: video on top, controls in a collapsible bottom shelf.
-            // Panels don't size to their content, so give the shelf an explicit height:
-            // about half the screen when open, just the handle when closed.
-            let shelf_height = if self.shelf_open { (ui.available_height() * 0.5).max(160.0) } else { 60.0 };
-            egui::Panel::bottom("controls_shelf")
-                .resizable(false)
-                .exact_size(shelf_height)
-                .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(egui::Margin {
-                    left: 16,
-                    right: 16,
-                    top: 4,
-                    bottom: 16,
-                }))
-                .show(ui, |ui| {
-                    if ui::shelf_handle(ui, self.shelf_open).clicked() {
-                        self.shelf_open = !self.shelf_open;
-                    }
-                    if self.shelf_open {
-                        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-                            if ui::controls(ui, &mut self.settings, &status) {
-                                (self.on_change)(&self.settings);
-                            }
-                        });
-                    }
-                });
-        } else {
-            // Desktop: fixed sidebar on the left.
-            egui::Panel::left("controls")
-                .exact_size(280.0)
-                .resizable(false)
-                .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(20))
-                .show(ui, |ui| {
-                    if ui::controls(ui, &mut self.settings, &status) {
-                        (self.on_change)(&self.settings);
-                    }
-                });
-        }
+impl DotMatrixApp {
+    /// Desktop: fixed sidebar on the left, video fitted (letterboxed) in the rest.
+    fn desktop_layout(&mut self, ui: &mut egui::Ui, status: &str) {
+        egui::Panel::left("controls")
+            .exact_size(280.0)
+            .resizable(false)
+            .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(20))
+            .show(ui, |ui| {
+                if ui::controls(ui, &mut self.settings, status) {
+                    (self.on_change)(&self.settings);
+                }
+            });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(ui::BG).inner_margin(16))
@@ -146,7 +113,92 @@ impl eframe::App for DotMatrixApp {
                     ui.centered_and_justified(|ui| ui.add(img));
                 }
             });
+    }
+
+    /// Phone / narrow window: the video fills the whole screen, and the controls
+    /// float over it in a shelf pinned to the bottom (like CSS `position: absolute; bottom: 0`).
+    fn mobile_layout(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, status: &str) {
+        // 1. Full-screen video, cropped to fill (like CSS `object-fit: cover`).
+        let screen = ctx.viewport_rect();
+        let painter = ui.painter();
+        painter.rect_filled(screen, 0.0, ui::BG);
+        if let Some(t) = &self.texture {
+            painter.image(t.id(), screen, cover_uv(t.size_vec2(), screen.size()), egui::Color32::WHITE);
+        }
+
+        // 2. The shelf: an `Area` is egui's floating layer, positioned absolutely on top.
+        let height = if self.shelf_open { (screen.height() * 0.5).max(160.0) } else { 56.0 };
+        egui::Area::new(egui::Id::unique("controls_shelf"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(egui::pos2(screen.left(), screen.bottom() - height))
+            .show(ctx, |ui| {
+                let margin = egui::Margin { left: 16, right: 16, top: 4, bottom: 12 };
+                egui::Frame::new()
+                    .fill(ui::SHELF)
+                    .corner_radius(egui::CornerRadius { nw: 14, ne: 14, sw: 0, se: 0 })
+                    .inner_margin(margin)
+                    .show(ui, |ui| {
+                        ui.set_width(screen.width() - margin.sum().x);
+                        ui.set_height(height - margin.sum().y);
+                        if ui::shelf_handle(ui, self.shelf_open).clicked() {
+                            self.shelf_open = !self.shelf_open;
+                        }
+                        if self.shelf_open {
+                            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                                if ui::controls(ui, &mut self.settings, status) {
+                                    (self.on_change)(&self.settings);
+                                }
+                            });
+                        }
+                    });
+            });
+    }
+}
+
+/// Texture coordinates that crop an image of size `tex` so it fills `target` without
+/// stretching (CSS `object-fit: cover`), centred and mirrored like a selfie view.
+fn cover_uv(tex: egui::Vec2, target: egui::Vec2) -> egui::Rect {
+    let scale = (target.x / tex.x).max(target.y / tex.y);
+    // Fraction of the image that stays visible along each axis (1.0 = all of it).
+    let (u, v) = (target.x / (tex.x * scale), target.y / (tex.y * scale));
+    // u runs right-to-left to mirror the image.
+    egui::Rect::from_min_max(egui::pos2(0.5 + u / 2.0, 0.5 - v / 2.0), egui::pos2(0.5 - u / 2.0, 0.5 + v / 2.0))
+}
+
+impl eframe::App for DotMatrixApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        self.update_texture(&ctx);
+
+        let status = self.source.status();
+        // egui rebuilds the layout every frame, so "responsive" is just an `if`.
+        if ui.available_width() < NARROW_WIDTH {
+            self.mobile_layout(ui, &ctx, &status);
+        } else {
+            self.desktop_layout(ui, &status);
+        }
 
         ctx.request_repaint();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cover_uv;
+    use eframe::egui::vec2;
+
+    #[test]
+    fn landscape_video_on_portrait_phone_crops_the_sides() {
+        // 1280×720 camera on a 500×900 screen: full height visible, ~31% of the width.
+        let uv = cover_uv(vec2(1280.0, 720.0), vec2(500.0, 900.0));
+        assert!((uv.min.y - 0.0).abs() < 1e-6 && (uv.max.y - 1.0).abs() < 1e-6);
+        assert!((uv.min.x - uv.max.x - 0.3125).abs() < 1e-6); // mirrored: min.x > max.x
+        assert!(((uv.min.x + uv.max.x) / 2.0 - 0.5).abs() < 1e-6); // centred
+    }
+
+    #[test]
+    fn same_aspect_shows_everything() {
+        let uv = cover_uv(vec2(1280.0, 720.0), vec2(640.0, 360.0));
+        assert_eq!((uv.min.x, uv.max.x, uv.min.y, uv.max.y), (1.0, 0.0, 0.0, 1.0));
     }
 }
