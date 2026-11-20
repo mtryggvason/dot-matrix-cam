@@ -12,7 +12,7 @@ mod camera_web;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-use dotmatrix_core::{Renderer, Settings};
+use dotmatrix_core::{Params, Renderer};
 use eframe::egui;
 
 /// Somewhere camera frames come from.
@@ -32,22 +32,28 @@ pub fn native_camera() -> Box<dyn FrameSource> {
 /// The main window: controls on the left, live preview on the right.
 pub struct DotMatrixApp {
     source: Box<dyn FrameSource>,
-    settings: Settings,
+    settings: Params,
     /// Settings used for the current texture, to re-render when a control changes.
-    rendered_with: Option<Settings>,
+    rendered_with: Option<Params>,
     renderer: Renderer,
     out: Vec<u8>,
     texture: Option<egui::TextureHandle>,
     /// Called whenever the user changes a setting (e.g. to save it).
-    on_change: Box<dyn FnMut(&Settings)>,
+    on_change: Box<dyn FnMut(&Params)>,
+    /// Narrow screens only: whether the bottom controls shelf is expanded.
+    shelf_open: bool,
 }
+
+/// Below this window width (in points), the controls move from the left sidebar
+/// into a collapsible shelf at the bottom.
+const NARROW_WIDTH: f32 = 700.0;
 
 impl DotMatrixApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         source: Box<dyn FrameSource>,
-        settings: Settings,
-        on_change: Box<dyn FnMut(&Settings)>,
+        settings: Params,
+        on_change: Box<dyn FnMut(&Params)>,
     ) -> Self {
         ui::apply_theme(&cc.egui_ctx);
         Self {
@@ -58,6 +64,7 @@ impl DotMatrixApp {
             out: Vec::new(),
             texture: None,
             on_change,
+            shelf_open: true,
         }
     }
 
@@ -67,13 +74,7 @@ impl DotMatrixApp {
         let Self { source, settings, renderer, out, texture, .. } = self;
         let rendered = source.poll(force, &mut |w, h, channels, px| {
             out.resize((w * h * 4) as usize, 0);
-            if settings.enabled {
-                renderer.render(px, channels, w, h, &settings.params, out);
-            } else {
-                for (o, i) in out.chunks_exact_mut(4).zip(px.chunks_exact(channels)) {
-                    o.copy_from_slice(&[i[0], i[1], i[2], 255]);
-                }
-            }
+            renderer.render(px, channels, w, h, settings, out);
             let img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], out);
             match texture {
                 Some(t) => t.set(img, egui::TextureOptions::LINEAR),
@@ -92,15 +93,45 @@ impl eframe::App for DotMatrixApp {
         self.update_texture(&ctx);
 
         let status = self.source.status();
-        egui::Panel::left("controls")
-            .exact_size(280.0)
-            .resizable(false)
-            .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(20))
-            .show(ui, |ui| {
-                if ui::controls(ui, &mut self.settings, &status) {
-                    (self.on_change)(&self.settings);
-                }
-            });
+        // egui rebuilds the layout every frame, so "responsive" is just an `if`.
+        if ui.available_width() < NARROW_WIDTH {
+            // Phone / narrow window: video on top, controls in a collapsible bottom shelf.
+            // Panels don't size to their content, so give the shelf an explicit height:
+            // about half the screen when open, just the handle when closed.
+            let shelf_height = if self.shelf_open { (ui.available_height() * 0.5).max(160.0) } else { 60.0 };
+            egui::Panel::bottom("controls_shelf")
+                .resizable(false)
+                .exact_size(shelf_height)
+                .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(egui::Margin {
+                    left: 16,
+                    right: 16,
+                    top: 4,
+                    bottom: 16,
+                }))
+                .show(ui, |ui| {
+                    if ui::shelf_handle(ui, self.shelf_open).clicked() {
+                        self.shelf_open = !self.shelf_open;
+                    }
+                    if self.shelf_open {
+                        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                            if ui::controls(ui, &mut self.settings, &status) {
+                                (self.on_change)(&self.settings);
+                            }
+                        });
+                    }
+                });
+        } else {
+            // Desktop: fixed sidebar on the left.
+            egui::Panel::left("controls")
+                .exact_size(280.0)
+                .resizable(false)
+                .frame(egui::Frame::new().fill(ui::PANEL).inner_margin(20))
+                .show(ui, |ui| {
+                    if ui::controls(ui, &mut self.settings, &status) {
+                        (self.on_change)(&self.settings);
+                    }
+                });
+        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(ui::BG).inner_margin(16))

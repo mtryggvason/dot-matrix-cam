@@ -35,7 +35,7 @@ impl WebCamera {
             let result: Result<(), JsValue> = async {
                 let devices = web_sys::window().unwrap().navigator().media_devices()?;
                 let constraints = MediaStreamConstraints::new();
-                constraints.set_video(&js_sys::JSON::parse(r#"{"width":1280,"height":720}"#)?);
+                constraints.set_video(&js_sys::JSON::parse(r#"{"width":1280,"height":720,"facingMode":"user"}"#)?);
                 let stream: MediaStream =
                     JsFuture::from(devices.get_user_media_with_constraints(&constraints)?).await?.dyn_into()?;
                 v.set_src_object(Some(&stream));

@@ -45,22 +45,6 @@ impl Default for Params {
     }
 }
 
-/// Everything the UI controls: the effect parameters plus an on/off switch.
-/// Saved as JSON (localStorage) by the web app.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
-pub struct Settings {
-    pub enabled: bool,
-    #[cfg_attr(feature = "serde", serde(flatten))]
-    pub params: Params,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self { enabled: true, params: Params::default() }
-    }
-}
-
 /// Reusable scratch memory so rendering does not allocate per frame.
 #[derive(Default)]
 pub struct Renderer {

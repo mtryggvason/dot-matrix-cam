@@ -1,7 +1,7 @@
 //! Theme and widgets for the app window (native and web).
 //! Colours and spacing match the original HTML page.
 
-use dotmatrix_core::{Mode, Settings};
+use dotmatrix_core::{Mode, Params};
 use eframe::egui::{self, Color32};
 
 pub const BG: Color32 = Color32::from_rgb(0x0e, 0x0f, 0x11);
@@ -46,9 +46,8 @@ pub fn apply_theme(ctx: &egui::Context) {
 }
 
 /// The whole control column. Returns true if anything changed.
-pub fn controls(ui: &mut egui::Ui, s: &mut Settings, status: &str) -> bool {
-    let before = *s;
-    let p = &mut s.params;
+pub fn controls(ui: &mut egui::Ui, p: &mut Params, status: &str) -> bool {
+    let before = *p;
     ui.spacing_mut().item_spacing.y = 16.0;
 
     ui.vertical(|ui| {
@@ -73,9 +72,34 @@ pub fn controls(ui: &mut egui::Ui, s: &mut Settings, status: &str) -> bool {
         });
     });
     row(ui, "Invert", |ui| checkbox(ui, &mut p.invert));
-    row(ui, "Effect on", |ui| checkbox(ui, &mut s.enabled));
 
-    *s != before
+    *p != before
+}
+
+/// Full-width tap target at the top of the mobile shelf: a grab bar, a label and a
+/// chevron pointing the way the shelf will move. Returns the click response.
+pub fn shelf_handle(ui: &mut egui::Ui, open: bool) -> egui::Response {
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 40.0), egui::Sense::click());
+    let p = ui.painter();
+
+    // Grab bar, centred at the top.
+    let bar = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + 6.0), egui::vec2(36.0, 4.0));
+    p.rect_filled(bar, 2.0, TRACK);
+
+    // "Controls" on the left, chevron on the right.
+    let y = rect.center().y + 4.0;
+    let color = if response.hovered() { TEXT } else { MUTED };
+    p.text(egui::pos2(rect.left(), y), egui::Align2::LEFT_CENTER, "Controls", egui::FontId::proportional(14.0), color);
+    let (cx, d) = (rect.right() - 8.0, if open { 3.0 } else { -3.0 }); // open: points down (close)
+    let stroke = egui::Stroke::new(2.0, color);
+    p.line_segment([egui::pos2(cx - 6.0, y - d), egui::pos2(cx, y + d)], stroke);
+    p.line_segment([egui::pos2(cx, y + d), egui::pos2(cx + 6.0, y - d)], stroke);
+
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response
 }
 
 /// "Label            value" on one line, a full-width slider underneath.
