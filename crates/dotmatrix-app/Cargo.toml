@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 dotmatrix-core = { path = "../dotmatrix-core", features = ["serde"] }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+png = "0.18"   # screenshot encoding (pure Rust, works natively and in WASM)
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 nokhwa = { version = "0.10", features = ["input-native"] }
@@ -28,7 +29,7 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = [
   "Window", "Document", "Element", "HtmlCanvasElement", "HtmlVideoElement", "HtmlMediaElement",
   "CanvasRenderingContext2d", "ImageData", "Navigator", "MediaDevices", "MediaStream",
-  "MediaStreamConstraints", "Storage",
+  "MediaStreamConstraints", "Storage", "Blob", "BlobPropertyBag", "Url", "HtmlAnchorElement", "HtmlElement",
 ] }
 
 [package.metadata.wasm-pack.profile.release]

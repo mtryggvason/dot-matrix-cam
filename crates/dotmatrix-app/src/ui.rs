@@ -104,6 +104,38 @@ pub fn shelf_handle(ui: &mut egui::Ui, open: bool) -> egui::Response {
     response
 }
 
+/// Round camera-shutter button (ring + dot). Greyed out until there is a frame to save.
+pub fn shutter_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(48.0, 48.0), sense);
+    let pressed = enabled && response.is_pointer_button_down_on();
+    let color = if !enabled {
+        MUTED
+    } else if pressed || response.hovered() {
+        ACCENT
+    } else {
+        TEXT
+    };
+    let p = ui.painter();
+    let c = rect.center();
+    p.circle_filled(c, 24.0, SHELF);
+    p.circle_stroke(c, 15.0, egui::Stroke::new(2.0, color));
+    p.circle_filled(c, if pressed { 9.0 } else { 11.0 }, color);
+    if enabled && response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.on_hover_text("Save screenshot")
+}
+
+/// Small rounded message bubble.
+pub fn toast(ui: &mut egui::Ui, message: &str) {
+    egui::Frame::new()
+        .fill(SHELF)
+        .corner_radius(8)
+        .inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 6 })
+        .show(ui, |ui| ui.label(egui::RichText::new(message).size(12.0).color(TEXT)));
+}
+
 /// "Label            value" on one line, a full-width slider underneath.
 fn labeled_slider(
     ui: &mut egui::Ui,

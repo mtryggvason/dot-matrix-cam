@@ -484,6 +484,7 @@ dependencies = [
  "eframe",
  "js-sys",
  "nokhwa",
+ "png",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -13,6 +13,9 @@ Controls: dot colour, background colour, grid size (how many dots), dot size, co
 halftone vs LED mode, invert. On narrow screens (phones) the controls move into a
 collapsible shelf below the video.
 
+The round button in the top-right corner saves a PNG screenshot of the current frame
+(Mac app: `~/Pictures/dot-matrix-<date>.png`; web: a file download).
+
 ## Prerequisites
 
 ```sh

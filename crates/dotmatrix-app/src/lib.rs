@@ -3,6 +3,7 @@
 //!
 //! Frame flow: camera (platform-specific) → `dotmatrix_core::Renderer` → egui texture.
 
+mod save;
 pub mod ui;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -42,6 +43,10 @@ pub struct DotMatrixApp {
     on_change: Box<dyn FnMut(&Params)>,
     /// Narrow screens only: whether the bottom controls shelf is expanded.
     shelf_open: bool,
+    /// Width and height of the frame currently in `out` (None until the first frame).
+    out_size: Option<[u32; 2]>,
+    /// Message shown under the screenshot button, and when it appeared (egui time, seconds).
+    toast: Option<(String, f64)>,
 }
 
 /// Below this window width (in points), the controls move from the left sidebar
@@ -65,16 +70,19 @@ impl DotMatrixApp {
             texture: None,
             on_change,
             shelf_open: true,
+            out_size: None,
+            toast: None,
         }
     }
 
     /// Pull the newest camera frame and run the effect on it.
     fn update_texture(&mut self, ctx: &egui::Context) {
         let force = self.rendered_with != Some(self.settings);
-        let Self { source, settings, renderer, out, texture, .. } = self;
+        let Self { source, settings, renderer, out, out_size, texture, .. } = self;
         let rendered = source.poll(force, &mut |w, h, channels, px| {
             out.resize((w * h * 4) as usize, 0);
             renderer.render(px, channels, w, h, settings, out);
+            *out_size = Some([w, h]);
             let img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], out);
             match texture {
                 Some(t) => t.set(img, egui::TextureOptions::LINEAR),
@@ -88,6 +96,41 @@ impl DotMatrixApp {
 }
 
 impl DotMatrixApp {
+    /// Floating shutter button in the top-right corner, plus a short message under it.
+    fn screenshot_button(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
+        egui::Area::new(egui::Id::unique("screenshot_button"))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-16.0, 16.0))
+            .show(ctx, |ui| {
+                if ui::shutter_button(ui, self.out_size.is_some()).clicked() {
+                    self.toast = Some((self.save_screenshot(), now));
+                }
+            });
+
+        if let Some((message, shown_at)) = &self.toast {
+            if now - shown_at > 3.0 {
+                self.toast = None;
+            } else {
+                egui::Area::new(egui::Id::unique("screenshot_toast"))
+                    .order(egui::Order::Foreground)
+                    .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-16.0, 72.0))
+                    .show(ctx, |ui| ui::toast(ui, message));
+            }
+        }
+    }
+
+    /// Encode the last rendered frame as PNG and save it. Returns a message for the user.
+    fn save_screenshot(&self) -> String {
+        let Some([w, h]) = self.out_size else {
+            return "No camera frame yet".into();
+        };
+        match save::encode_png_mirrored(w, h, &self.out).and_then(|png| save::save(&png)) {
+            Ok(message) => message,
+            Err(e) => format!("Screenshot failed: {e}"),
+        }
+    }
+
     /// Desktop: fixed sidebar on the left, video fitted (letterboxed) in the rest.
     fn desktop_layout(&mut self, ui: &mut egui::Ui, status: &str) {
         egui::Panel::left("controls")
@@ -177,6 +220,7 @@ impl eframe::App for DotMatrixApp {
         } else {
             self.desktop_layout(ui, &status);
         }
+        self.screenshot_button(&ctx);
 
         ctx.request_repaint();
     }
