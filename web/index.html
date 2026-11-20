@@ -9,15 +9,39 @@
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #0e0f11; }
     canvas { display: block; width: 100%; height: 100%; }
+    #errors {
+      position: fixed; inset: 12px 12px auto 12px; max-height: 60%; overflow: auto; z-index: 1;
+      margin: 0; padding: 10px 12px; border-radius: 8px; background: #2a0e0e; color: #ffb4b4;
+      font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
+    }
   </style>
 </head>
 <body>
   <canvas id="app"></canvas>
+  <!-- Errors are shown on the page so failures on phones (no dev tools) are visible. Tap to hide. -->
+  <pre id="errors" hidden onclick="this.hidden = true"></pre>
+  <script>
+    window.showError = (msg) => {
+      const el = document.getElementById("errors");
+      el.hidden = false;
+      el.textContent += String(msg) + "\n\n";
+    };
+    addEventListener("error", (e) => showError(e.message || e.error));
+    addEventListener("unhandledrejection", (e) => showError(e.reason?.stack || e.reason));
+    // eframe reports Rust panics (with a stack) through console.error.
+    const consoleError = console.error.bind(console);
+    console.error = (...args) => { consoleError(...args); showError(args.join(" ")); };
+  </script>
   <!-- Loader: everything else is Rust (crates/dotmatrix-app), compiled to WASM. -->
   <script type="module">
-    import init, { start_app } from "./pkg/dotmatrix_app.js";
-    await init();
-    await start_app("app");
+    try {
+      // Dynamic import, so a failure to load the module is caught below too.
+      const { default: init, start_app } = await import("./pkg/dotmatrix_app.js");
+      await init();
+      await start_app("app");
+    } catch (e) {
+      showError("Failed to start: " + (e?.stack || e));
+    }
   </script>
 </body>
 </html>
