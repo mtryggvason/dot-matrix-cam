@@ -1,7 +1,7 @@
 //! WebAssembly entry point, called from the loader script in web/index.html.
 //! Runs the full app on a web page; settings are saved in localStorage.
 
-use dotmatrix_core::Settings;
+use dotmatrix_core::Params;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
@@ -19,7 +19,7 @@ fn canvas(id: &str) -> Result<HtmlCanvasElement, JsValue> {
         .map_err(|_| JsValue::from_str(&format!("#{id} is not a <canvas>")))
 }
 
-fn parse(json: Option<String>) -> Settings {
+fn parse(json: Option<String>) -> Params {
     json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default()
 }
 
@@ -33,7 +33,7 @@ pub async fn start_app(canvas_id: &str) -> Result<(), JsValue> {
             canvas(canvas_id)?,
             eframe::WebOptions::default(),
             Box::new(move |cc| {
-                let save = move |s: &Settings| {
+                let save = move |s: &Params| {
                     if let (Some(st), Ok(json)) = (&storage, serde_json::to_string(s)) {
                         let _ = st.set_item(KEY, &json);
                     }

@@ -10,7 +10,8 @@ web/                    index.html with a 3-line loader for the WASM app
 ```
 
 Controls: dot colour, background colour, grid size (how many dots), dot size, contrast,
-halftone vs LED mode, invert, effect on/off.
+halftone vs LED mode, invert. On narrow screens (phones) the controls move into a
+collapsible shelf below the video.
 
 ## Prerequisites
 
