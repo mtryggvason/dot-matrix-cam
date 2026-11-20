@@ -9,6 +9,8 @@ pub const PANEL: Color32 = Color32::from_rgb(0x17, 0x19, 0x1c);
 pub const TEXT: Color32 = Color32::from_rgb(0xe8, 0xe8, 0xe8);
 pub const MUTED: Color32 = Color32::from_rgb(0x8a, 0x8f, 0x98);
 pub const ACCENT: Color32 = Color32::from_rgb(0x39, 0xff, 0x14);
+/// The mobile shelf: PANEL, slightly see-through so the video shows behind it.
+pub const SHELF: Color32 = Color32::from_rgba_premultiplied(0x15, 0x17, 0x1a, 0xeb);
 const INPUT: Color32 = Color32::from_rgb(0x22, 0x22, 0x22);
 const BORDER: Color32 = Color32::from_rgb(0x33, 0x33, 0x33);
 const TRACK: Color32 = Color32::from_rgb(0x3a, 0x3d, 0x42);
