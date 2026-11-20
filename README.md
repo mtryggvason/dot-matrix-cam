@@ -30,6 +30,11 @@ macOS asks for camera permission for the app you launch it from (Terminal, VS Co
 
 ## Web app
 
+Live: https://mtryggvason.github.io/dot-matrix-cam/ (deployed from `main` by
+`.github/workflows/pages.yml`).
+
+Locally:
+
 ```sh
 ./scripts/build-web.sh
 npx serve web        # then open the printed URL (http://localhost:3000)
