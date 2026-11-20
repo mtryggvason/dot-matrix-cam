@@ -1,0 +1,35 @@
+[package]
+name = "dotmatrix-app"
+version = "0.1.0"
+edition = "2021"
+description = "Dot Matrix Cam app (egui): native macOS binary and WebAssembly web app."
+
+# The library holds the app; it is compiled to WASM for the browser.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# The native macOS program.
+[[bin]]
+name = "dotmatrix-cam"
+path = "src/main.rs"
+
+[dependencies]
+dotmatrix-core = { path = "../dotmatrix-core", features = ["serde"] }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nokhwa = { version = "0.10", features = ["input-native"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+serde_json = "1"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+  "Window", "Document", "Element", "HtmlCanvasElement", "HtmlVideoElement", "HtmlMediaElement",
+  "CanvasRenderingContext2d", "ImageData", "Navigator", "MediaDevices", "MediaStream",
+  "MediaStreamConstraints", "Storage",
+] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3"]
