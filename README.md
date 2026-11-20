@@ -14,7 +14,8 @@ halftone vs LED mode, invert. On narrow screens (phones) the controls move into 
 collapsible shelf below the video.
 
 The round button in the top-right corner saves a PNG screenshot of the current frame
-(Mac app: `~/Pictures/dot-matrix-<date>.png`; web: a file download).
+(Mac app: `~/Pictures/dot-matrix-<date>.png`; phones: the share sheet, e.g. Save Image;
+other browsers: a file download).
 
 ## Prerequisites
 

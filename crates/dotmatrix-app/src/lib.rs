@@ -104,7 +104,11 @@ impl DotMatrixApp {
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-16.0, 16.0))
             .show(ctx, |ui| {
                 if ui::shutter_button(ui, self.out_size.is_some()).clicked() {
-                    self.toast = Some((self.save_screenshot(), now));
+                    let message = self.save_screenshot();
+                    // Empty when the share sheet opened: it is its own feedback.
+                    if !message.is_empty() {
+                        self.toast = Some((message, now));
+                    }
                 }
             });
 

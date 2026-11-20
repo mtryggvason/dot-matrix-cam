@@ -30,6 +30,7 @@ web-sys = { version = "0.3", features = [
   "Window", "Document", "Element", "HtmlCanvasElement", "HtmlVideoElement", "HtmlMediaElement",
   "CanvasRenderingContext2d", "ImageData", "Navigator", "MediaDevices", "MediaStream",
   "MediaStreamConstraints", "Storage", "Blob", "BlobPropertyBag", "Url", "HtmlAnchorElement", "HtmlElement",
+  "File", "FilePropertyBag", "ShareData", "MediaQueryList",
 ] }
 
 [package.metadata.wasm-pack.profile.release]

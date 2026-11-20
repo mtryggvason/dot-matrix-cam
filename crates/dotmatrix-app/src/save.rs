@@ -1,5 +1,5 @@
 //! Screenshots: encode the current frame as PNG, then save it.
-//! Mac: a file in ~/Pictures. Browser: a file download.
+//! Mac: a file in ~/Pictures. Phones: the native share sheet. Other browsers: a download.
 
 /// RGBA frame → PNG bytes, mirrored left-right so it matches the on-screen (selfie) view.
 pub fn encode_png_mirrored(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
@@ -57,25 +57,81 @@ pub fn save(png: &[u8]) -> Result<String, String> {
     Ok(format!("Saved {shown}"))
 }
 
-/// Trigger a browser download. Returns a message for the user.
+/// Browser: on touch devices (phones, tablets) open the native share sheet, so the
+/// image can go to Photos, AirDrop, Messages…; elsewhere download the file.
+/// Returns a message for the user (empty when the share sheet speaks for itself).
 #[cfg(target_arch = "wasm32")]
 pub fn save(png: &[u8]) -> Result<String, String> {
-    use wasm_bindgen::{closure::Closure, JsCast, JsValue};
-    let err = |e: JsValue| format!("{e:?}");
+    let name = file_name((js_sys::Date::now() / 1000.0) as u64);
+    if is_touch_device() && share(png, &name)? {
+        return Ok(String::new());
+    }
+    download(png, &name)?;
+    Ok(format!("Downloaded {name}"))
+}
+
+/// Phones and tablets: the primary pointer is a finger.
+#[cfg(target_arch = "wasm32")]
+fn is_touch_device() -> bool {
+    web_sys::window()
+        .and_then(|w| w.match_media("(pointer: coarse)").ok().flatten())
+        .is_some_and(|m| m.matches())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn js_err(e: wasm_bindgen::JsValue) -> String {
+    format!("{e:?}")
+}
+
+/// Open the share sheet with the PNG as a file. Returns false if this browser
+/// can't share files, so the caller can fall back to a download.
+#[cfg(target_arch = "wasm32")]
+fn share(png: &[u8], name: &str) -> Result<bool, String> {
+    let navigator = web_sys::window().ok_or("no window")?.navigator();
+    // Older browsers have no navigator.canShare at all; calling it would throw.
+    if !js_sys::Reflect::has(&navigator, &"canShare".into()).unwrap_or(false) {
+        return Ok(false);
+    }
+    let options = web_sys::FilePropertyBag::new();
+    options.set_type("image/png");
+    let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(png));
+    let file = web_sys::File::new_with_u8_array_sequence_and_options(&parts, name, &options).map_err(js_err)?;
+    let data = web_sys::ShareData::new();
+    data.set_files(&js_sys::Array::of1(&file));
+    if !navigator.can_share_with_data(&data) {
+        return Ok(false);
+    }
+
+    // share() must start during the tap, so call it now and only await the result.
+    let promise = navigator.share_with_data(&data);
+    let (png, name) = (png.to_vec(), name.to_owned());
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Err(e) = wasm_bindgen_futures::JsFuture::from(promise).await {
+            let reason = js_sys::Reflect::get(&e, &"name".into()).ok().and_then(|n| n.as_string());
+            // AbortError = the user closed the share sheet. Anything else: download instead.
+            if reason.as_deref() != Some("AbortError") {
+                let _ = download(&png, &name);
+            }
+        }
+    });
+    Ok(true)
+}
+
+/// PNG bytes → Blob → temporary object URL → <a download> click.
+#[cfg(target_arch = "wasm32")]
+fn download(png: &[u8], name: &str) -> Result<(), String> {
+    use wasm_bindgen::{closure::Closure, JsCast};
 
     let window = web_sys::window().ok_or("no window")?;
     let document = window.document().ok_or("no document")?;
-    let name = file_name((js_sys::Date::now() / 1000.0) as u64);
-
-    // PNG bytes → Blob → temporary object URL → <a download> click.
     let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(png));
     let options = web_sys::BlobPropertyBag::new();
     options.set_type("image/png");
-    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options).map_err(err)?;
-    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(err)?;
-    let link: web_sys::HtmlAnchorElement = document.create_element("a").map_err(err)?.unchecked_into();
+    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options).map_err(js_err)?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(js_err)?;
+    let link: web_sys::HtmlAnchorElement = document.create_element("a").map_err(js_err)?.unchecked_into();
     link.set_href(&url);
-    link.set_download(&name);
+    link.set_download(name);
     link.click();
 
     // Free the object URL once the browser has had time to start the download.
@@ -83,7 +139,7 @@ pub fn save(png: &[u8]) -> Result<String, String> {
         let _ = web_sys::Url::revoke_object_url(&url);
     });
     let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(revoke.unchecked_ref(), 30_000);
-    Ok(format!("Downloaded {name}"))
+    Ok(())
 }
 
 #[cfg(test)]
